@@ -7,6 +7,6 @@ import (
 
 type Database interface {
 	FindVersion() (models.Version, error)
-	CreateUser(models.User) error
+	CreateUser(models.User, string) error
 	FindUser(id uuid.UUID) (models.User, error)
 }

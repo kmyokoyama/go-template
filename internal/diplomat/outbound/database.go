@@ -8,9 +8,14 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/jackc/pgx/v5/stdlib"
 	"github.com/kmyokoyama/go-template/internal/components"
 	"github.com/kmyokoyama/go-template/internal/models"
 	"go.uber.org/fx"
+	"github.com/golang-migrate/migrate/v4"
+    "github.com/golang-migrate/migrate/v4/database/postgres"
+    _ "github.com/golang-migrate/migrate/v4/source/github"
+	_ "github.com/golang-migrate/migrate/v4/source/file"
 )
 
 type PgDatabase struct {
@@ -28,7 +33,7 @@ func (db *PgDatabase) FindVersion() (models.Version, error) {
 	return models.Version{Version: version}, nil
 }
 
-func (db *PgDatabase) CreateUser(user models.User) error {
+func (db *PgDatabase) CreateUser(user models.User, hashedPassword string) error {
 	tx, err := db.Conn.Begin(context.Background())
 
 	if err != nil {
@@ -39,8 +44,8 @@ func (db *PgDatabase) CreateUser(user models.User) error {
 	// the tx commits successfully, this is a no-op
 	defer tx.Rollback(context.Background())
 
-	stmt := `INSERT INTO users(uuid, name) VALUES ($1, $2)`
-	_, err = tx.Exec(context.Background(), stmt, user.Id, user.Name)
+	stmt := `INSERT INTO users(uuid, username, password, role_id) VALUES ($1, $2, $3, (SELECT id FROM roles WHERE name = $4))`
+	_, err = tx.Exec(context.Background(), stmt, user.Id, user.Username, hashedPassword, user.Role.String())
 	if err != nil {
 		return err
 	}
@@ -54,14 +59,20 @@ func (db *PgDatabase) CreateUser(user models.User) error {
 }
 
 func (db *PgDatabase) FindUser(id uuid.UUID) (models.User, error) {
-	var name string
+	var username string
+	var role string
 
-	err := db.Conn.QueryRow(context.Background(), "SELECT name FROM users WHERE users.uuid = $1", id).Scan(&name)
+	err := db.Conn.QueryRow(context.Background(), "SELECT username, role FROM users WHERE users.uuid = $1", id).Scan(&username, &role)
 	if err != nil {
 		return models.User{}, err
 	}
 
-	return models.User{Id: id, Name: name}, nil
+	modelRole, err := models.FromString(role)
+	if err != nil {
+		return models.User{}, err
+	}
+
+	return models.User{Id: id, Username: username, Role: modelRole}, nil
 }
 
 func NewDatabase(lc fx.Lifecycle, logger *slog.Logger) components.Database {
@@ -70,7 +81,7 @@ func NewDatabase(lc fx.Lifecycle, logger *slog.Logger) components.Database {
 	lc.Append(fx.Hook{
 		OnStart: func(ctx context.Context) error {
 			logger.Info("Started on", "port", ":8080")
-			
+
 			dbHost := os.Getenv("DB_HOST")
 			dbDatabase := os.Getenv("DB_DATABASE")
 			dbUser := os.Getenv("DB_USER")
@@ -85,8 +96,27 @@ func NewDatabase(lc fx.Lifecycle, logger *slog.Logger) components.Database {
 				os.Exit(1)
 			}
 
-			logger.Info("Connected to the database")
+			logger.Info("connected to the database")
 			db.Conn = conn
+
+			pwd, _ := os.Getwd()
+			logger.Info("running migrations", "dir", pwd)
+			driver, err := postgres.WithInstance(stdlib.OpenDBFromPool(conn), &postgres.Config{})
+			if err != nil {
+				logger.Error("migrate/postgres instance failed to open")
+				return err
+			}
+			m, err := migrate.NewWithDatabaseInstance(
+				"file://migrations/",
+				"postgres", driver)
+				if err != nil {
+					logger.Error("migrate failed to get instance")
+					return err
+				}
+			defer m.Close()
+
+			m.Up()
+			logger.Info("migrations ran")
 
 			return nil
 		},

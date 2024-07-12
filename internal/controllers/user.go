@@ -2,15 +2,18 @@ package controllers
 
 import (
 	"github.com/google/uuid"
+	"golang.org/x/crypto/bcrypt"
 	"github.com/kmyokoyama/go-template/internal/components"
 	"github.com/kmyokoyama/go-template/internal/models"
 )
 
-func CreateUser(c *components.Components, user models.User) (models.User, error) {
+func Signup(c *components.Components, user models.User, password string) (models.User, error) {
 	id := uuid.New()
 	user.Id = id
 
-	err := c.Db.CreateUser(user)
+	hashedPassword, _ := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
+	
+	err := c.Db.CreateUser(user, string(hashedPassword))
 	if err != nil {
 		return user, err
 	}
