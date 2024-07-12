@@ -1,10 +1,13 @@
 package controllers
 
 import (
+	"errors"
+
+	"github.com/golang-jwt/jwt/v5"
 	"github.com/google/uuid"
-	"golang.org/x/crypto/bcrypt"
 	"github.com/kmyokoyama/go-template/internal/components"
 	"github.com/kmyokoyama/go-template/internal/models"
+	"golang.org/x/crypto/bcrypt"
 )
 
 func Signup(c *components.Components, user models.User, password string) (models.User, error) {
@@ -21,12 +24,51 @@ func Signup(c *components.Components, user models.User, password string) (models
 	return user, nil
 }
 
+func Login(c *components.Components, username string, password string) (string, error) {
+	user, hashedPassword, err := c.Db.FindUserAndPasswordByUsername(username)
+	if err != nil {
+		c.Logger.Error("login error", "err", err)
+		return "", errors.New("user not found")
+	}
+
+	err = bcrypt.CompareHashAndPassword([]byte(hashedPassword), []byte(password))
+	if err != nil {
+		c.Logger.Error("login error", "err", err)
+		return "", errors.New("username or password does not match")
+	}
+
+	token, err := newToken(user, "secret")
+	if err != nil {
+		c.Logger.Error("login failed", "err", err)
+		return "", err
+	}
+
+	return token, nil
+}
+
 func FindUser(c *components.Components, id uuid.UUID) (models.User, error) {
-	c.Logger.Info("user.go:", "id", id)
 	user, err := c.Db.FindUser(id)
 	if err != nil {
 		return models.User{}, err
 	}
 
 	return user, nil
+}
+
+// JWT.
+
+func newToken(user models.User, secret string) (string, error) {
+	// TODO: Add time-related claims.
+	token := jwt.NewWithClaims(jwt.SigningMethodHS512, jwt.MapClaims{
+		"user-id": user.Id,
+		"role":    user.Role.String(),
+	})
+
+	// Sign and get the complete encoded token as a string using the secret
+	signedToken, err := token.SignedString([]byte(secret)) // TODO: Handle this error.
+	if err != nil {
+		return "", err
+	}
+
+	return signedToken, err
 }

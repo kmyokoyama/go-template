@@ -5,7 +5,7 @@ import (
 	"github.com/kmyokoyama/go-template/internal/wire"
 )
 
-func ToUserInternal(w wire.CreateUserRequest) (models.User, error) {
+func ToUserInternal(w wire.SignupRequest) (models.User, error) {
 	role, err := models.FromString(w.Role)
 	if err != nil {
 		return models.User{}, err
@@ -15,5 +15,5 @@ func ToUserInternal(w wire.CreateUserRequest) (models.User, error) {
 }
 
 func ToUserResponse(user models.User) wire.UserResponse {
-	return wire.UserResponse{Id: user.Id, Name: user.Username, Role: user.Role.String()}
+	return wire.UserResponse{Id: user.Id, Username: user.Username, Role: user.Role.String()}
 }

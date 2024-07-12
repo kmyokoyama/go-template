@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"net/http"
 
-	jwt "github.com/golang-jwt/jwt/v5"
 	"github.com/google/uuid"
 	"github.com/gorilla/mux"
 	"go.uber.org/fx"
@@ -13,7 +12,6 @@ import (
 	"github.com/kmyokoyama/go-template/internal/adapters"
 	"github.com/kmyokoyama/go-template/internal/components"
 	"github.com/kmyokoyama/go-template/internal/controllers"
-	"github.com/kmyokoyama/go-template/internal/models"
 	"github.com/kmyokoyama/go-template/internal/wire"
 )
 
@@ -56,24 +54,24 @@ func VersionHandler(w http.ResponseWriter, r *http.Request, c *components.Compon
 	w.Write(respJson)
 }
 
-func CreateUserHandler(w http.ResponseWriter, r *http.Request, c *components.Components) {
-	c.Logger.Info("received request on POST /user")
+func SignupHandler(w http.ResponseWriter, r *http.Request, c *components.Components) {
+	c.Logger.Info("received request on POST /signup")
 
-	var createUserRequest wire.CreateUserRequest
-	err := json.NewDecoder(r.Body).Decode(&createUserRequest)
+	var signupRequest wire.SignupRequest
+	err := json.NewDecoder(r.Body).Decode(&signupRequest)
 
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
 
-	user, err := adapters.ToUserInternal(createUserRequest)
+	user, err := adapters.ToUserInternal(signupRequest)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
 
-	user, err = controllers.Signup(c, user, createUserRequest.Password)
+	user, err = controllers.Signup(c, user, signupRequest.Password)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
@@ -82,6 +80,34 @@ func CreateUserHandler(w http.ResponseWriter, r *http.Request, c *components.Com
 	resp := adapters.ToUserResponse(user)
 
 	respJson, err := json.Marshal(resp)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+
+	w.Write(respJson)
+}
+
+func LoginHandler(w http.ResponseWriter, r *http.Request, c *components.Components) {
+	c.Logger.Info("received request on POST /login")
+
+	var loginRequest wire.LoginRequest
+	err := json.NewDecoder(r.Body).Decode(&loginRequest)
+
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	token, err := controllers.Login(c, loginRequest.Username, loginRequest.Password)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	respJson, err := json.Marshal(wire.LoginResponse{Token: token})
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
@@ -120,7 +146,8 @@ func FindUserHandler(w http.ResponseWriter, r *http.Request, c *components.Compo
 
 var routes Routes = Routes{
 	Route{"version", "GET", "/version", VersionHandler},
-	Route{"create user", "POST", "/user", CreateUserHandler},
+	Route{"signup", "POST", "/signup", SignupHandler},
+	Route{"login", "POST", "/login", LoginHandler},
 	Route{"find user", "GET", "/user/{id}", FindUserHandler},
 }
 
@@ -148,18 +175,4 @@ func NewHttpServer(lc fx.Lifecycle, h http.Handler, c *components.Components) *h
 		}})
 
 	return srv
-}
-
-// JWT.
-
-func NewToken(id uuid.UUID, role models.Role, secret string) (string, error) {
-	token := jwt.NewWithClaims(jwt.SigningMethodHS512, jwt.MapClaims{
-		"user-id": id,
-		"role":    role.String(),
-	})
-
-	// Sign and get the complete encoded token as a string using the secret
-	tokenString, err := token.SignedString(secret) // TODO: Handle this error.
-
-	return tokenString, err
 }

@@ -6,16 +6,16 @@ import (
 	"log/slog"
 	"os"
 
+	"github.com/golang-migrate/migrate/v4"
+	"github.com/golang-migrate/migrate/v4/database/postgres"
+	_ "github.com/golang-migrate/migrate/v4/source/file"
+	_ "github.com/golang-migrate/migrate/v4/source/github"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/jackc/pgx/v5/stdlib"
 	"github.com/kmyokoyama/go-template/internal/components"
 	"github.com/kmyokoyama/go-template/internal/models"
 	"go.uber.org/fx"
-	"github.com/golang-migrate/migrate/v4"
-    "github.com/golang-migrate/migrate/v4/database/postgres"
-    _ "github.com/golang-migrate/migrate/v4/source/github"
-	_ "github.com/golang-migrate/migrate/v4/source/file"
 )
 
 type PgDatabase struct {
@@ -75,6 +75,27 @@ func (db *PgDatabase) FindUser(id uuid.UUID) (models.User, error) {
 	return models.User{Id: id, Username: username, Role: modelRole}, nil
 }
 
+func (db *PgDatabase) FindUserAndPasswordByUsername(username string) (models.User, string, error) {
+	var id uuid.UUID
+	var hashedPassword string
+	var role string
+
+	err := db.Conn.QueryRow(
+		context.Background(),
+		"SELECT u.uuid, u.password, r.name FROM users AS u JOIN roles AS r ON u.role_id = r.id WHERE u.username = $1", username,
+	).Scan(&id, &hashedPassword, &role)
+	if err != nil {
+		return models.User{}, "", err
+	}
+
+	modelRole, err := models.FromString(role)
+	if err != nil {
+		return models.User{}, "", err
+	}
+
+	return models.User{Id: id, Username: username, Role: modelRole}, hashedPassword, nil
+}
+
 func NewDatabase(lc fx.Lifecycle, logger *slog.Logger) components.Database {
 	db := &PgDatabase{}
 
@@ -109,10 +130,10 @@ func NewDatabase(lc fx.Lifecycle, logger *slog.Logger) components.Database {
 			m, err := migrate.NewWithDatabaseInstance(
 				"file://migrations/",
 				"postgres", driver)
-				if err != nil {
-					logger.Error("migrate failed to get instance")
-					return err
-				}
+			if err != nil {
+				logger.Error("migrate failed to get instance")
+				return err
+			}
 			defer m.Close()
 
 			m.Up()
@@ -129,3 +150,6 @@ func NewDatabase(lc fx.Lifecycle, logger *slog.Logger) components.Database {
 
 	return db
 }
+
+// Verify interface compliance.
+var _ components.Database = (*PgDatabase)(nil)
