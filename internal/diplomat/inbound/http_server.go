@@ -3,7 +3,6 @@ package inbound
 import (
 	"context"
 	"encoding/json"
-	"fmt"
 	"net/http"
 	"strings"
 
@@ -21,8 +20,6 @@ import (
 // Handlers.
 
 func VersionHandler(w http.ResponseWriter, r *http.Request, c *components.Components) {
-	c.Logger.Info("received request on GET /version")
-
 	version, err := controllers.GetVersion(c)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -37,14 +34,10 @@ func VersionHandler(w http.ResponseWriter, r *http.Request, c *components.Compon
 		return
 	}
 
-	w.Header().Set("Content-Type", "application/json")
-
 	w.Write(respJson)
 }
 
 func SignupHandler(w http.ResponseWriter, r *http.Request, c *components.Components) {
-	c.Logger.Info("received request on POST /signup")
-
 	var signupRequest wire.SignupRequest
 	err := json.NewDecoder(r.Body).Decode(&signupRequest)
 
@@ -73,14 +66,10 @@ func SignupHandler(w http.ResponseWriter, r *http.Request, c *components.Compone
 		return
 	}
 
-	w.Header().Set("Content-Type", "application/json")
-
 	w.Write(respJson)
 }
 
 func LoginHandler(w http.ResponseWriter, r *http.Request, c *components.Components) {
-	c.Logger.Info("received request on POST /login")
-
 	var loginRequest wire.LoginRequest
 	err := json.NewDecoder(r.Body).Decode(&loginRequest)
 
@@ -101,16 +90,11 @@ func LoginHandler(w http.ResponseWriter, r *http.Request, c *components.Componen
 		return
 	}
 
-	w.Header().Set("Content-Type", "application/json")
-
 	w.Write(respJson)
 }
 
 func FindUserHandler(w http.ResponseWriter, r *http.Request, c *components.Components) {
-	c.Logger.Info("received request on GET /user")
-
 	vars := mux.Vars(r)
-
 	id, _ := uuid.Parse(vars["id"])
 
 	user, err := controllers.FindUser(c, id)
@@ -127,14 +111,10 @@ func FindUserHandler(w http.ResponseWriter, r *http.Request, c *components.Compo
 		return
 	}
 
-	w.Header().Set("Content-Type", "application/json")
-
 	w.Write(respJson)
 }
 
 func WorkHandler(w http.ResponseWriter, r *http.Request, c *components.Components) {
-	c.Logger.Info("received request on POST /work")
-
 	var workRequest wire.WorkRequest
 	err := json.NewDecoder(r.Body).Decode(&workRequest)
 	if err != nil {
@@ -149,7 +129,6 @@ func WorkHandler(w http.ResponseWriter, r *http.Request, c *components.Component
 		return
 	}
 
-	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusAccepted)
 	w.Write(respJson)
 }
@@ -165,13 +144,13 @@ func (f MiddlewareWithComponents) WithComponents(c *components.Components) negro
 }
 
 func Logging(w http.ResponseWriter, r *http.Request, next http.HandlerFunc, c *components.Components) {
-	fmt.Println("Logged, calling next")
+	c.Logger.Info("received request", "path", r.RequestURI, "method", r.Method)
 	next(w, r)
 }
 
 func Authentication(w http.ResponseWriter, r *http.Request, next http.HandlerFunc, c *components.Components) {
 	authHeader := r.Header.Get("Authorization")
-	
+
 	const BEARER_SCHEMA = "Bearer "
 	var token string
 	if strings.HasPrefix(authHeader, BEARER_SCHEMA) {
@@ -187,16 +166,15 @@ func Authentication(w http.ResponseWriter, r *http.Request, next http.HandlerFun
 				return
 			}
 
-			w.Header().Set("Content-Type", "application/json")
 			w.WriteHeader(http.StatusForbidden)
 			w.Write(respJson)
 		}
 	}
 }
 
-func AsJson(w http.ResponseWriter, r *http.Request, next http.HandlerFunc, c *components.Components) {
+func ResponseJson(w http.ResponseWriter, r *http.Request, next http.HandlerFunc, c *components.Components) {
 	next(w, r)
-	fmt.Println("AsJson, calling next")
+	w.Header().Set("Content-Type", "application/json")
 }
 
 // Routes.
@@ -229,14 +207,23 @@ var routes Routes = Routes{
 		Method:      "POST",
 		Path:        "/work",
 		HandlerFunc: WorkHandler,
-		Middlewares: []MiddlewareWithComponents{Logging, Authentication, AsJson},
+		Middlewares: []MiddlewareWithComponents{Authentication},
 	},
 }
 
 // Constructors.
 
+func defaultMiddlewares(c *components.Components) *negroni.Negroni {
+	return negroni.New(
+		MiddlewareWithComponents(Logging).WithComponents(c),
+		MiddlewareWithComponents(ResponseJson).WithComponents(c),
+	)
+}
+
 func NewRouter(c *components.Components) http.Handler {
 	router := mux.NewRouter().StrictSlash(true)
+
+	common := defaultMiddlewares(c)
 
 	for _, route := range routes {
 		var mws []negroni.Handler
@@ -244,7 +231,7 @@ func NewRouter(c *components.Components) http.Handler {
 			mws = append(mws, mw.WithComponents(c))
 		}
 
-		n := negroni.New(mws...)
+		n := common.With(mws...)
 		n.UseHandler(route.HandlerFunc.WithComponents(c))
 
 		router.Name(route.Name).Methods(route.Method).Path(route.Path).Handler(n)

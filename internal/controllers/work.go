@@ -7,6 +7,6 @@ import (
 )
 
 func ProcessWork(c *components.Components, id uuid.UUID, description string) (models.Work, error) {
-	c.Logger.Info("received work", "id", id, "description", description)
+	c.Logger.Info("received work and processing", "id", id, "description", description)
 	return models.Work{}, nil
 }

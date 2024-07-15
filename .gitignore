@@ -30,3 +30,4 @@ api-service.log
 # other
 .idea
 vendor/
+.env

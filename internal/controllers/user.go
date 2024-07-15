@@ -2,7 +2,6 @@ package controllers
 
 import (
 	"errors"
-	"fmt"
 
 	"github.com/golang-jwt/jwt/v5"
 	"github.com/google/uuid"
@@ -81,15 +80,11 @@ func newToken(user models.User, secret string) (string, error) {
 }
 
 func IsValidToken(accessToken string) bool {
-	fmt.Println("IsValidToken called")
 	parsedAccessToken, err := jwt.ParseWithClaims(accessToken, &UserClaims{}, func(token *jwt.Token) (interface{}, error) {
 		return []byte("secret"), nil
 	})
-	
-	fmt.Println("IsValidToken after")
-	
 	if err != nil {
-		fmt.Println("err: ", err)
+		return false
 	}
 
 	return parsedAccessToken.Valid

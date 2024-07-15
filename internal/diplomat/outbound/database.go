@@ -110,7 +110,7 @@ func NewDatabase(lc fx.Lifecycle, logger *slog.Logger) components.Database {
 
 			// postgresql://localhost/postgres?user=postgres&password=mysecretpassword"
 			connUri := fmt.Sprintf("postgresql://%s/%s?user=%s&password=%s", dbHost, dbDatabase, dbUser, dbPassword)
-			logger.Debug("database.go", "connUri", connUri)
+			logger.Info("database.go", "connUri", connUri)
 			conn, err := pgxpool.New(context.Background(), connUri)
 			if err != nil {
 				logger.Error("Unable to connect to database: %v\n", "error", err.Error())
