@@ -2,6 +2,7 @@ package controllers
 
 import (
 	"errors"
+	"fmt"
 
 	"github.com/golang-jwt/jwt/v5"
 	"github.com/google/uuid"
@@ -15,7 +16,7 @@ func Signup(c *components.Components, user models.User, password string) (models
 	user.Id = id
 
 	hashedPassword, _ := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
-	
+
 	err := c.Db.CreateUser(user, string(hashedPassword))
 	if err != nil {
 		return user, err
@@ -57,11 +58,17 @@ func FindUser(c *components.Components, id uuid.UUID) (models.User, error) {
 
 // JWT.
 
+type UserClaims struct {
+	UserId uuid.UUID `json:"user-id"`
+	Role   string    `json:"role"`
+	jwt.RegisteredClaims
+}
+
 func newToken(user models.User, secret string) (string, error) {
 	// TODO: Add time-related claims.
-	token := jwt.NewWithClaims(jwt.SigningMethodHS512, jwt.MapClaims{
-		"user-id": user.Id,
-		"role":    user.Role.String(),
+	token := jwt.NewWithClaims(jwt.SigningMethodHS512, &UserClaims{
+		UserId: user.Id,
+		Role:    user.Role.String(),
 	})
 
 	// Sign and get the complete encoded token as a string using the secret
@@ -71,4 +78,19 @@ func newToken(user models.User, secret string) (string, error) {
 	}
 
 	return signedToken, err
+}
+
+func IsValidToken(accessToken string) bool {
+	fmt.Println("IsValidToken called")
+	parsedAccessToken, err := jwt.ParseWithClaims(accessToken, &UserClaims{}, func(token *jwt.Token) (interface{}, error) {
+		return []byte("secret"), nil
+	})
+	
+	fmt.Println("IsValidToken after")
+	
+	if err != nil {
+		fmt.Println("err: ", err)
+	}
+
+	return parsedAccessToken.Valid
 }
