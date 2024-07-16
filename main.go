@@ -3,7 +3,6 @@ package main
 import (
 	"net/http"
 
-	"github.com/joho/godotenv"
 	"github.com/kmyokoyama/go-template/internal/components"
 	"github.com/kmyokoyama/go-template/internal/diplomat/inbound"
 	"github.com/kmyokoyama/go-template/internal/diplomat/outbound"
@@ -19,15 +18,10 @@ func NewApp(srv *http.Server) *App {
 }
 
 func main() {
-	// TODO: Move to config component.
-	err := godotenv.Load()
-	if err != nil {
-		panic("unable to load env vars, panicking")
-	}
-
 	fx.New(
 		fx.Provide(NewApp),
 		fx.Provide(components.NewComponents),
+		fx.Provide(components.NewConfig),
 		fx.Provide(inbound.NewRouter),
 		fx.Provide(inbound.NewHttpServer),
 		fx.Provide(outbound.NewDatabase),

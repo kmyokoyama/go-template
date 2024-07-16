@@ -6,7 +6,7 @@ import (
 )
 
 func ToUserInternal(w wire.SignupRequest) (models.User, error) {
-	role, err := models.FromString(w.Role)
+	role, err := models.RoleFromString(w.Role)
 	if err != nil {
 		return models.User{}, err
 	}

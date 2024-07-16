@@ -121,9 +121,11 @@ func WorkHandler(w http.ResponseWriter, r *http.Request, c *components.Component
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 	}
 
-	controllers.ProcessWork(c, workRequest.Id, workRequest.Description)
+	work, _ := controllers.ProcessWork(c, workRequest.Id, workRequest.Description)
 
-	respJson, err := json.Marshal(wire.WorkResponse{Id: workRequest.Id, Status: "pending"})
+	resp := adapters.ToWorkResponse(work)
+
+	respJson, err := json.Marshal(resp)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return

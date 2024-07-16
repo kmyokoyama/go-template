@@ -6,9 +6,10 @@ import (
 
 type Components struct {
 	Logger *log.Logger
+	Config Config
 	Db     Database
 }
 
-func NewComponents(logger *log.Logger, db Database) *Components {
-	return &Components{Logger: logger, Db: db}
+func NewComponents(logger *log.Logger, config Config, db Database) *Components {
+	return &Components{Logger: logger, Config: config, Db: db}
 }

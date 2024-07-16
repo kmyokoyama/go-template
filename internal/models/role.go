@@ -16,7 +16,7 @@ var (
 	Admin   = Role{"admin"}
 )
 
-func FromString(s string) (Role, error) {
+func RoleFromString(s string) (Role, error) {
 	switch s {
 	case Member.slug:
 		return Member, nil

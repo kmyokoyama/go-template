@@ -67,7 +67,7 @@ func (db *PgDatabase) FindUser(id uuid.UUID) (models.User, error) {
 		return models.User{}, err
 	}
 
-	modelRole, err := models.FromString(role)
+	modelRole, err := models.RoleFromString(role)
 	if err != nil {
 		return models.User{}, err
 	}
@@ -88,7 +88,7 @@ func (db *PgDatabase) FindUserAndPasswordByUsername(username string) (models.Use
 		return models.User{}, "", err
 	}
 
-	modelRole, err := models.FromString(role)
+	modelRole, err := models.RoleFromString(role)
 	if err != nil {
 		return models.User{}, "", err
 	}
@@ -96,17 +96,17 @@ func (db *PgDatabase) FindUserAndPasswordByUsername(username string) (models.Use
 	return models.User{Id: id, Username: username, Role: modelRole}, hashedPassword, nil
 }
 
-func NewDatabase(lc fx.Lifecycle, logger *slog.Logger) components.Database {
+func NewDatabase(lc fx.Lifecycle, logger *slog.Logger, config components.Config) components.Database {
 	db := &PgDatabase{}
 
 	lc.Append(fx.Hook{
 		OnStart: func(ctx context.Context) error {
 			logger.Info("Started on", "port", ":8080")
 
-			dbHost := os.Getenv("DB_HOST")
-			dbDatabase := os.Getenv("DB_DATABASE")
-			dbUser := os.Getenv("DB_USER")
-			dbPassword := os.Getenv("DB_PASSWORD")
+			dbHost := config.Get("DB_HOST")
+			dbDatabase := config.Get("DB_DATABASE")
+			dbUser := config.Get("DB_USER")
+			dbPassword := config.Get("DB_PASSWORD")
 
 			// postgresql://localhost/postgres?user=postgres&password=mysecretpassword"
 			connUri := fmt.Sprintf("postgresql://%s/%s?user=%s&password=%s", dbHost, dbDatabase, dbUser, dbPassword)

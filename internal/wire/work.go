@@ -8,6 +8,7 @@ type WorkRequest struct {
 }
 
 type WorkResponse struct {
-	Id     uuid.UUID `json:"id"`
-	Status string    `json:"status"`
+	Id          uuid.UUID `json:"id"`
+	Description string    `json:"description"`
+	Status      string    `json:"status"`
 }

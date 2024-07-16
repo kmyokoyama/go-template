@@ -5,8 +5,8 @@ import (
 	"os"
 )
 
-func NewLogger() *slog.Logger {
-	env := os.Getenv("SERVICE_ENV")
+func NewLogger(config Config) *slog.Logger {
+	env := config.Get("SERVICE_ENV")
 
 	var programLevel = new(slog.LevelVar)
 	
